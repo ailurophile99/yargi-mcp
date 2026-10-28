@@ -1,0 +1,20 @@
+# Hermes local assets
+node_modules/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.env.*
+!.env.example
+*.pem
+*.key
+*.log
+.cache/
+
+cache/
+data/
