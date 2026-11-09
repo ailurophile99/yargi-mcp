@@ -28,6 +28,7 @@ Kurulum betiği aşağıdaki tüm ortamlara otomatik entegre olur:
 
 | Yapay Zekâ / Araç | Yapılandırma Dosyası | Durum |
 | :--- | :--- | :---: |
+| **Claude Code (CLI)** | `~/.claude.json` ve `.mcp.json` | Otomatik |
 | **Claude Desktop** | `claude_desktop_config.json` | Otomatik |
 | **Gemini (Antigravity)** | `~/.gemini/config/mcp_config.json` | Otomatik |
 | **ChatGPT (Codex)** | `~/.codex/config.toml` & `mcp.json` | Otomatik |

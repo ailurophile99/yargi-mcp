@@ -1,6 +1,6 @@
 # Yargı & UYAP Mevzuat MCP — Evrensel Kurulum Rehberi
 
-Bu MCP sunucusu; **Claude Desktop**, **Gemini (Antigravity)**, **ChatGPT (Codex)**, **OpenCode**, **Cline**, **Kimi Code**, **Hermes Agent** ve **Cursor** dahil olmak üzere popüler tüm yapay zekâ asistanlarıyla tam uyumludur.
+Bu MCP sunucusu; **Claude Code (CLI)**, **Claude Desktop**, **Gemini (Antigravity)**, **ChatGPT (Codex)**, **OpenCode**, **Cline**, **Kimi Code**, **Hermes Agent** ve **Cursor** dahil olmak üzere popüler tüm yapay zekâ asistanlarıyla tam uyumludur.
 
 ---
 
@@ -26,22 +26,25 @@ irm https://raw.githubusercontent.com/ailurophile99/yargi-mcp/master/install.ps1
 
 Betik çalıştırıldığında aşağıdaki konfigürasyonlar otomatik olarak güncellenir:
 
-1. **Claude Desktop:**
+1. **Claude Code (CLI):**
+   * Global: `~/.claude.json` (`mcpServers`) ve CLI `claude mcp add`
+   * Proje: `.mcp.json`
+2. **Claude Desktop:**
    * macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
    * Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-2. **Gemini (Antigravity):**
+3. **Gemini (Antigravity):**
    * `~/.gemini/config/mcp_config.json`
-3. **ChatGPT (Codex):**
+4. **ChatGPT (Codex):**
    * `~/.codex/config.toml` ve `~/.codex/mcp.json`
-4. **OpenCode:**
+5. **OpenCode:**
    * `~/.config/opencode/opencode.json` (`mcp` formatı)
-5. **Cline (VS Code, Cursor & CLI):**
+6. **Cline (VS Code, Cursor & CLI):**
    * `cline_mcp_settings.json` (tüm VS Code ve Cursor uzantı konumları)
-6. **Kimi Code:**
+7. **Kimi Code:**
    * `~/.kimi-code/mcp.json`
-7. **Hermes Agent:**
+8. **Hermes Agent:**
    * `~/.hermes/config.yaml` (`mcp_servers` bloğu)
-8. **Cursor:**
+9. **Cursor:**
    * `~/.cursor/mcp.json`
 
 ---

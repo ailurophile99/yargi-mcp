@@ -7,6 +7,8 @@ import asyncio
 import json
 import os
 import pathlib
+import shutil
+import subprocess
 import sys
 
 
@@ -97,17 +99,18 @@ def configure_json_file(file_path: pathlib.Path, key_name: str, server_key: str,
         return False
 
 
-def configure_all_ai_assistants(venv_python: str, main_script: str) -> list:
+def configure_all_ai_assistants(venv_python: str, main_script: str, yargi_dir: pathlib.Path = None) -> list:
     """
     Tüm popüler yapay zekâ asistanlarını tespit eder ve yapılandırır:
     1. Claude Desktop
-    2. Gemini (Antigravity)
-    3. ChatGPT (Codex)
-    4. OpenCode
-    5. Cline (VS Code, Cursor, CLI)
-    6. Kimi Code
-    7. Hermes Agent
-    8. Cursor
+    2. Claude Code (CLI)
+    3. Gemini (Antigravity)
+    4. ChatGPT (Codex)
+    5. OpenCode
+    6. Cline (VS Code, Cursor, CLI)
+    7. Kimi Code
+    8. Hermes Agent
+    9. Cursor
     """
     home = pathlib.Path.home()
     is_win = sys.platform == "win32"
@@ -134,7 +137,30 @@ def configure_all_ai_assistants(venv_python: str, main_script: str) -> list:
     configure_json_file(claude_cfg, "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
     results.append(("Claude Desktop", str(claude_cfg), claude_installed))
 
-    # 2. Gemini (Antigravity)
+    # 2. Claude Code (CLI)
+    claude_code_cfg = home / ".claude.json"
+    claude_code_dir = home / ".claude"
+    claude_cli_bin = shutil.which("claude.cmd") if is_win else shutil.which("claude")
+    claude_code_installed = claude_code_cfg.exists() or claude_code_dir.exists() or (claude_cli_bin is not None)
+    configure_json_file(claude_code_cfg, "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
+    if claude_cli_bin:
+        try:
+            subprocess.run(
+                [claude_cli_bin, "mcp", "add", "--scope", "user", "yargi-ve-mevzuat-mcp", "--", str(venv_python), str(main_script)],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except Exception:
+            pass
+    if yargi_dir:
+        try:
+            configure_json_file(yargi_dir / ".mcp.json", "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
+        except Exception:
+            pass
+    results.append(("Claude Code (CLI)", str(claude_code_cfg), claude_code_installed))
+
+    # 3. Gemini (Antigravity)
     antigravity_cfg = home / ".gemini" / "config" / "mcp_config.json"
     antigravity_installed = (home / ".gemini").exists()
     configure_json_file(antigravity_cfg, "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
@@ -282,7 +308,7 @@ def main() -> None:
     print("      -> OK: UYAP Mevzuat ve Yargı modülleri doğrulandı.")
 
     print("\n   [Yapay Zekâ Asistanları Otomatik Yapılandırması]")
-    configured_list = configure_all_ai_assistants(venv_python, main_script)
+    configured_list = configure_all_ai_assistants(venv_python, main_script, yargi_dir)
     for ai_name, cfg_path, is_installed in configured_list:
         status_tag = "[KURULU]" if is_installed else "[HAZIRLANDI]"
         print(f"      -> {status_tag:13} {ai_name:22} : {cfg_path}")

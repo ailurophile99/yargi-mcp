@@ -5,6 +5,7 @@
 # =============================================================================
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls
 
 Write-Host "================================================================" -ForegroundColor Cyan
 Write-Host "   Yargı & UYAP Mevzuat MCP - Tek Satırlık Kurulum (Windows)    " -ForegroundColor Cyan
@@ -38,7 +39,7 @@ if (Test-Path (Join-Path $TargetDir ".git")) {
         Write-Host "      -> Git bulunamadı, arşiv indirilip açılıyor..." -ForegroundColor Cyan
         $ZipPath = Join-Path $env:TEMP "yargi-mcp-$([System.Guid]::NewGuid().ToString()).zip"
         $ExtractDir = Join-Path $env:TEMP "yargi-extracted-$([System.Guid]::NewGuid().ToString())"
-        Invoke-WebRequest -Uri "https://api.github.com/repos/ailurophile99/yargi-mcp/zipball/master" -OutFile $ZipPath
+        Invoke-WebRequest -Uri "https://github.com/ailurophile99/yargi-mcp/archive/refs/heads/master.zip" -OutFile $ZipPath -UseBasicParsing
         Expand-Archive -Path $ZipPath -DestinationPath $ExtractDir -Force
         $FirstFolder = Get-ChildItem -Path $ExtractDir | Select-Object -First 1
         if (Test-Path $TargetDir) { Remove-Item -Recurse -Force $TargetDir }
@@ -68,10 +69,12 @@ foreach ($p in $PossibleUvPaths) {
 
 if (-not $UvExe) {
     Write-Host "      -> 'uv' bulunamadı. Resmi kaynaktan (https://astral.sh/uv) kuruluyor..." -ForegroundColor Cyan
-    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-    $env:Path = "$env:USERPROFILE\.local\bin;$env:LOCALAPPDATA\uv;$env:Path"
+    powershell -ExecutionPolicy ByPass -c "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; irm https://astral.sh/uv/install.ps1 | iex"
+    $env:Path = "$env:USERPROFILE\.local\bin;$env:LOCALAPPDATA\uv;$env:USERPROFILE\.cargo\bin;$env:ProgramFiles\uv;$env:Path"
     if (Test-Path "$env:USERPROFILE\.local\bin\uv.exe") {
         $UvExe = "$env:USERPROFILE\.local\bin\uv.exe"
+    } elseif (Test-Path "$env:LOCALAPPDATA\uv\uv.exe") {
+        $UvExe = "$env:LOCALAPPDATA\uv\uv.exe"
     } else {
         throw "'uv' kurulumu başarısız oldu. Lütfen internet bağlantınızı kontrol edin."
     }
@@ -126,7 +129,8 @@ $env:PYTHONIOENCODING = "utf-8"
 Write-Host ""
 Write-Host "================================================================" -ForegroundColor Green
 Write-Host " ✔ KURULUM BAŞARIYLA TAMAMLANDI!                               " -ForegroundColor Green
-Write-Host "   Kullandığınız yapay zekâ asistanını (Claude Desktop,        " -ForegroundColor Green
-Write-Host "   Gemini Antigravity, ChatGPT Codex, OpenCode, Cline, Kimi,   " -ForegroundColor Green
-Write-Host "   Hermes Agent veya Cursor) yeniden başlatıp hemen kullanın.  " -ForegroundColor Green
+Write-Host "   Kullandığınız yapay zekâ asistanını (Claude Code CLI,       " -ForegroundColor Green
+Write-Host "   Claude Desktop, Gemini Antigravity, ChatGPT Codex,          " -ForegroundColor Green
+Write-Host "   OpenCode, Cline, Kimi, Hermes Agent veya Cursor)            " -ForegroundColor Green
+Write-Host "   yeniden başlatıp hemen kullanmaya başlayabilirsiniz.        " -ForegroundColor Green
 Write-Host "================================================================" -ForegroundColor Green
