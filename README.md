@@ -14,7 +14,14 @@ Terminal uygulamasını açın ve şu tek satırı yapıştırıp **Enter**'a ba
 curl -fsSL https://raw.githubusercontent.com/ailurophile99/yargi-mcp/master/install.sh | bash
 ```
 
-### 🪟 Windows
+### 🪟 Windows (İki Farklı Kolay Yol)
+
+#### 1. Yol: Tek Dosya İndirip Çift Tıklama (En Kolay)
+1. [**kurulum_windows.bat İndir**](https://raw.githubusercontent.com/ailurophile99/yargi-mcp/master/kurulum_windows.bat) *(Bağlantıya sağ tıklayıp "Farklı Kaydet" yapabilir veya doğrudan indirebilirsiniz)*
+2. İndirdiğiniz `kurulum_windows.bat` dosyasına **çift tıklayın**!
+   > *Windows SmartScreen mavi uyarı ekranı verirse: **"Ek bilgi" -> "Yine de çalıştır"** demeniz yeterlidir.*
+
+#### 2. Yol: PowerShell Tek Satır Komutu
 PowerShell uygulamasını açın ve şu tek satırı yapıştırıp **Enter**'a basın:
 ```powershell
 irm https://raw.githubusercontent.com/ailurophile99/yargi-mcp/master/install.ps1 | iex
