@@ -101,9 +101,10 @@ def configure_json_file(file_path: pathlib.Path, key_name: str, server_key: str,
 
 def configure_all_ai_assistants(venv_python: str, main_script: str, yargi_dir: pathlib.Path = None) -> list:
     """
-    Tüm popüler yapay zekâ asistanlarını tespit eder ve yapılandırır:
-    1. Claude Desktop
-    2. Claude Code (CLI)
+    Kullanıcının bilgisayarında YÜKLÜ / TESPİT EDİLEN yapay zekâ asistanlarını yapılandırır.
+    Yüklü olmayan araçlar için gereksiz klasör veya dosya oluşturmaz.
+    1. Claude Desktop (Chat Sekmesi)
+    2. Claude Code (CLI ve Claude Desktop'ın 'Code' Sekmesi: ~/.claude.json)
     3. Gemini (Antigravity)
     4. ChatGPT (Codex)
     5. OpenCode
@@ -127,83 +128,80 @@ def configure_all_ai_assistants(venv_python: str, main_script: str, yargi_dir: p
         "env": {"PYTHONIOENCODING": "utf-8"},
     }
 
-    # 1. Claude Desktop
-    claude_cfg = (
+    # 1. Claude Desktop (Chat Sekmesi)
+    claude_desktop_cfg = (
         (appdata / "Claude" / "claude_desktop_config.json")
         if is_win
         else (home / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json")
     )
-    claude_installed = claude_cfg.parent.exists()
-    configure_json_file(claude_cfg, "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
-    results.append(("Claude Desktop", str(claude_cfg), claude_installed))
+    claude_desktop_installed = claude_desktop_cfg.parent.exists()
+    if claude_desktop_installed:
+        configure_json_file(claude_desktop_cfg, "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
+        results.append(("Claude Desktop (Chat)", str(claude_desktop_cfg), True))
 
-    # 2. Claude Code (CLI)
+    # 2. Claude Code (CLI ve Claude Desktop'ın 'Code' Sekmesi)
+    # Claude Desktop'ın içindeki Code sekmesi ve harici Claude Code CLI ~/.claude.json dosyasını okur
     claude_code_cfg = home / ".claude.json"
-    claude_code_dir = home / ".claude"
     claude_cli_bin = shutil.which("claude.cmd") if is_win else shutil.which("claude")
-    claude_code_installed = claude_code_cfg.exists() or claude_code_dir.exists() or (claude_cli_bin is not None)
-    configure_json_file(claude_code_cfg, "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
-    if claude_cli_bin:
-        try:
-            subprocess.run(
-                [claude_cli_bin, "mcp", "add", "--scope", "user", "yargi-ve-mevzuat-mcp", "--", str(venv_python), str(main_script)],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-        except Exception:
-            pass
-    if yargi_dir:
-        try:
-            configure_json_file(yargi_dir / ".mcp.json", "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
-        except Exception:
-            pass
-    results.append(("Claude Code (CLI)", str(claude_code_cfg), claude_code_installed))
+    claude_code_installed = claude_code_cfg.exists() or (home / ".claude").exists() or (claude_cli_bin is not None) or claude_desktop_installed
+    if claude_code_installed:
+        configure_json_file(claude_code_cfg, "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
+        if claude_cli_bin:
+            try:
+                subprocess.run(
+                    [claude_cli_bin, "mcp", "add", "--scope", "user", "yargi-ve-mevzuat-mcp", "--", str(venv_python), str(main_script)],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+            except Exception:
+                pass
+        results.append(("Claude Code (Code Sekmesi)", str(claude_code_cfg), True))
 
     # 3. Gemini (Antigravity)
-    antigravity_cfg = home / ".gemini" / "config" / "mcp_config.json"
-    antigravity_installed = (home / ".gemini").exists()
-    configure_json_file(antigravity_cfg, "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
-    results.append(("Gemini (Antigravity)", str(antigravity_cfg), antigravity_installed))
+    antigravity_dir = home / ".gemini"
+    if antigravity_dir.exists():
+        antigravity_cfg = antigravity_dir / "config" / "mcp_config.json"
+        configure_json_file(antigravity_cfg, "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
+        results.append(("Gemini (Antigravity)", str(antigravity_cfg), True))
 
-    # 3. ChatGPT (Codex)
+    # 4. ChatGPT (Codex)
     codex_dir = home / ".codex"
-    codex_installed = codex_dir.exists()
-    codex_dir.mkdir(parents=True, exist_ok=True)
-    codex_json = codex_dir / "mcp.json"
-    configure_json_file(codex_json, "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
-    codex_toml = codex_dir / "config.toml"
-    toml_snippet = (
-        '\n[mcpServers.yargi-ve-mevzuat-mcp]\n'
-        f'command = "{venv_python}"\n'
-        f'args = ["{main_script}"]\n'
-        'env = { PYTHONIOENCODING = "utf-8" }\n'
-    )
-    if codex_toml.exists():
-        c_text = codex_toml.read_text(encoding="utf-8")
-        if "[mcpServers.yargi-ve-mevzuat-mcp]" not in c_text:
-            codex_toml.write_text(c_text.strip() + "\n" + toml_snippet, encoding="utf-8")
-    else:
-        codex_toml.write_text(toml_snippet.strip() + "\n", encoding="utf-8")
-    results.append(("ChatGPT (Codex)", str(codex_toml), codex_installed))
+    if codex_dir.exists():
+        codex_json = codex_dir / "mcp.json"
+        configure_json_file(codex_json, "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
+        codex_toml = codex_dir / "config.toml"
+        toml_snippet = (
+            '\n[mcpServers.yargi-ve-mevzuat-mcp]\n'
+            f'command = "{venv_python}"\n'
+            f'args = ["{main_script}"]\n'
+            'env = { PYTHONIOENCODING = "utf-8" }\n'
+        )
+        if codex_toml.exists():
+            c_text = codex_toml.read_text(encoding="utf-8")
+            if "[mcpServers.yargi-ve-mevzuat-mcp]" not in c_text:
+                codex_toml.write_text(c_text.strip() + "\n" + toml_snippet, encoding="utf-8")
+        else:
+            codex_toml.write_text(toml_snippet.strip() + "\n", encoding="utf-8")
+        results.append(("ChatGPT (Codex)", str(codex_toml), True))
 
-    # 4. OpenCode
+    # 5. OpenCode
     opencode_cfg = (
         (appdata / "opencode" / "opencode.json")
         if is_win
         else (home / ".config" / "opencode" / "opencode.json")
     )
-    opencode_installed = opencode_cfg.parent.exists()
-    opencode_server = {
-        "type": "local",
-        "command": [str(venv_python), str(main_script)],
-        "environment": {"PYTHONIOENCODING": "utf-8"},
-        "enabled": True,
-    }
-    configure_json_file(opencode_cfg, "mcp", "yargi-ve-mevzuat-mcp", opencode_server)
-    results.append(("OpenCode", str(opencode_cfg), opencode_installed))
+    if opencode_cfg.parent.exists():
+        opencode_server = {
+            "type": "local",
+            "command": [str(venv_python), str(main_script)],
+            "environment": {"PYTHONIOENCODING": "utf-8"},
+            "enabled": True,
+        }
+        configure_json_file(opencode_cfg, "mcp", "yargi-ve-mevzuat-mcp", opencode_server)
+        results.append(("OpenCode", str(opencode_cfg), True))
 
-    # 5. Cline (VS Code, Cursor & CLI)
+    # 6. Cline (VS Code, Cursor & CLI)
     cline_server = dict(std_server)
     cline_server["disabled"] = False
     cline_server["autoApprove"] = []
@@ -218,48 +216,54 @@ def configure_all_ai_assistants(venv_python: str, main_script: str, yargi_dir: p
     cline_paths.append((home / ".cline" / "data" / "settings" / "cline_mcp_settings.json", "Cline (CLI)"))
 
     for c_path, c_label in cline_paths:
-        c_inst = c_path.parent.exists()
-        configure_json_file(c_path, "mcpServers", "yargi-ve-mevzuat-mcp", cline_server)
-        if c_inst:
-            results.append((c_label, str(c_path), c_inst))
-    if not any(r[0].startswith("Cline") for r in results):
-        results.append(("Cline", str(cline_paths[0][0]), False))
+        if c_path.parent.exists():
+            configure_json_file(c_path, "mcpServers", "yargi-ve-mevzuat-mcp", cline_server)
+            results.append((c_label, str(c_path), True))
 
-    # 6. Kimi Code
-    kimi_cfg = home / ".kimi-code" / "mcp.json"
-    kimi_installed = kimi_cfg.parent.exists()
-    configure_json_file(kimi_cfg, "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
-    results.append(("Kimi Code", str(kimi_cfg), kimi_installed))
+    # 7. Kimi Code
+    kimi_dir = home / ".kimi-code"
+    if kimi_dir.exists():
+        kimi_cfg = kimi_dir / "mcp.json"
+        configure_json_file(kimi_cfg, "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
+        results.append(("Kimi Code", str(kimi_cfg), True))
 
-    # 7. Hermes Agent
-    hermes_cfg = home / ".hermes" / "config.yaml"
-    hermes_installed = hermes_cfg.parent.exists()
-    try:
-        import yaml
-        hermes_cfg.parent.mkdir(parents=True, exist_ok=True)
-        h_data = {}
-        if hermes_cfg.exists() and hermes_cfg.stat().st_size > 0:
-            try:
-                h_data = yaml.safe_load(hermes_cfg.read_text(encoding="utf-8")) or {}
-            except Exception:
-                h_data = {}
-        if not isinstance(h_data.get("mcp_servers"), dict):
-            h_data["mcp_servers"] = {}
-        h_data["mcp_servers"]["yargi-ve-mevzuat-mcp"] = {
-            "command": str(venv_python),
-            "args": [str(main_script)],
-            "env": {"PYTHONIOENCODING": "utf-8"},
-        }
-        hermes_cfg.write_text(yaml.safe_dump(h_data, sort_keys=False, allow_unicode=True), encoding="utf-8")
-        results.append(("Hermes Agent", str(hermes_cfg), hermes_installed))
-    except Exception:
-        pass
+    # 8. Hermes Agent
+    hermes_dir = home / ".hermes"
+    if hermes_dir.exists():
+        hermes_cfg = hermes_dir / "config.yaml"
+        try:
+            import yaml
+            h_data = {}
+            if hermes_cfg.exists() and hermes_cfg.stat().st_size > 0:
+                try:
+                    h_data = yaml.safe_load(hermes_cfg.read_text(encoding="utf-8")) or {}
+                except Exception:
+                    h_data = {}
+            if not isinstance(h_data.get("mcp_servers"), dict):
+                h_data["mcp_servers"] = {}
+            h_data["mcp_servers"]["yargi-ve-mevzuat-mcp"] = {
+                "command": str(venv_python),
+                "args": [str(main_script)],
+                "env": {"PYTHONIOENCODING": "utf-8"},
+            }
+            hermes_cfg.write_text(yaml.safe_dump(h_data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+            results.append(("Hermes Agent", str(hermes_cfg), True))
+        except Exception:
+            pass
 
-    # 8. Cursor (Doğrudan)
-    cursor_cfg = home / ".cursor" / "mcp.json"
-    cursor_installed = cursor_cfg.parent.exists()
-    configure_json_file(cursor_cfg, "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
-    results.append(("Cursor", str(cursor_cfg), cursor_installed))
+    # 9. Cursor (Doğrudan)
+    cursor_dir = home / ".cursor"
+    if cursor_dir.exists():
+        cursor_cfg = cursor_dir / "mcp.json"
+        configure_json_file(cursor_cfg, "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
+        results.append(("Cursor", str(cursor_cfg), True))
+
+    # 10. Proje yerel .mcp.json (yargi-mcp dizini içi)
+    if yargi_dir:
+        try:
+            configure_json_file(yargi_dir / ".mcp.json", "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
+        except Exception:
+            pass
 
     return results
 
