@@ -2,24 +2,24 @@
 # =============================================================================
 # Yargı & UYAP Mevzuat MCP - macOS Çift Tıklama Başlatıcısı
 # =============================================================================
-set -e
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+URL="https://raw.githubusercontent.com/ailurophile99/yargi-mcp/master/install.sh"
 
-echo "================================================================"
-echo "   Yargı ve UYAP Mevzuat MCP - macOS Kurulum Başlatılıyor...    "
-echo "================================================================"
-echo ""
-
-if [ -f "$SCRIPT_DIR/install.sh" ]; then
-    echo "[1/2] Yerel kurulum betiği çalıştırılıyor..."
-    export YARGI_DIR="$SCRIPT_DIR"
-    chmod +x "$SCRIPT_DIR/install.sh" 2>/dev/null || true
-    exec "$SCRIPT_DIR/install.sh"
+TMP_SCRIPT="$(mktemp "${TMPDIR:-/tmp}/yargi-install-XXXXXX")"
+if curl -fsSL "$URL" -o "$TMP_SCRIPT"; then
+    bash "$TMP_SCRIPT"
+    RC=$?
+elif [ -f "$SCRIPT_DIR/install.sh" ]; then
+    echo "İnternetten alınamadı, yerel install.sh kullanılıyor..."
+    bash "$SCRIPT_DIR/install.sh"
+    RC=$?
 else
-    echo "[BİLGİ] Yerel kurulum betiği bulunamadı (tek dosya indirildi)."
-    echo "        Güncel kurulum GitHub üzerinden otomatik başlatılıyor..."
-    echo ""
-    curl -fsSL https://raw.githubusercontent.com/ailurophile99/yargi-mcp/master/install.sh | bash
+    echo "HATA: Kurulum betiği indirilemedi. İnternet bağlantınızı kontrol edin."
+    RC=1
 fi
+rm -f "$TMP_SCRIPT"
 
+echo ""
+read -r -n 1 -s -p "Pencereyi kapatmak için bir tuşa basın..." </dev/tty 2>/dev/null || true
+echo ""
+exit $RC

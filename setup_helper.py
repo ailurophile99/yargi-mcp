@@ -80,214 +80,321 @@ def ensure_mevzuat_enhancements(yargi_dir: pathlib.Path) -> None:
             client_p.write_text(txt, encoding="utf-8")
 
 
-def configure_json_file(file_path: pathlib.Path, key_name: str, server_key: str, server_data: dict) -> bool:
-    """JSON yapılandırma dosyasını diğer araçları ezmeden güvenli şekilde günceller."""
+# =============================================================================
+# Güvenli yapılandırma dosyası yazımı
+# =============================================================================
+SERVER_NAME = "yargi-ve-mevzuat-mcp"
+
+
+def _strip_jsonc(raw: str) -> str:
+    """// ve /* */ yorumlarını ve sondaki virgülleri temizler (string içlerine dokunmadan)."""
+    out, i, n, in_str, esc = [], 0, len(raw), False, False
+    while i < n:
+        c = raw[i]
+        if in_str:
+            out.append(c)
+            if esc:
+                esc = False
+            elif c == "\\":
+                esc = True
+            elif c == '"':
+                in_str = False
+            i += 1
+            continue
+        if c == '"':
+            in_str = True
+            out.append(c)
+            i += 1
+        elif raw.startswith("//", i):
+            while i < n and raw[i] not in "\r\n":
+                i += 1
+        elif raw.startswith("/*", i):
+            end = raw.find("*/", i + 2)
+            i = n if end == -1 else end + 2
+        else:
+            out.append(c)
+            i += 1
+    import re
+    return re.sub(r",(\s*[}\]])", r"\1", "".join(out))
+
+
+def _load_json(path: pathlib.Path):
+    """Dosyayı okur. Okunamıyorsa None döner (bu durumda dosyaya ASLA dokunulmaz)."""
+    if not path.exists() or path.stat().st_size == 0:
+        return {}
     try:
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        data = {}
-        if file_path.exists() and file_path.stat().st_size > 0:
-            try:
-                data = json.loads(file_path.read_text(encoding="utf-8"))
-            except Exception:
-                data = {}
-        if not isinstance(data.get(key_name), dict):
-            data[key_name] = {}
-        data[key_name][server_key] = server_data
-        file_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-        return True
+        raw = path.read_text(encoding="utf-8-sig")
     except Exception:
-        return False
+        return None
+    for candidate in (raw, None):
+        try:
+            data = json.loads(candidate if candidate is not None else _strip_jsonc(raw))
+            return data if isinstance(data, dict) else None
+        except Exception:
+            continue
+    return None
 
 
-def configure_all_ai_assistants(venv_python: str, main_script: str, yargi_dir: pathlib.Path = None) -> list:
+def _backup_once(path: pathlib.Path) -> None:
+    """İlk değişiklikten önce dosyanın yedeğini alır (<dosya>.yargi-yedek)."""
+    if path.exists():
+        bak = path.with_name(path.name + ".yargi-yedek")
+        if not bak.exists():
+            try:
+                shutil.copy2(path, bak)
+            except Exception:
+                pass
+
+
+def _atomic_write(path: pathlib.Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".yargi-tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def configure_json_file(file_path: pathlib.Path, key_name: str, server_key: str, server_data: dict):
+    """JSON yapılandırmasını diğer ayarları ezmeden günceller. (başarılı_mı, açıklama) döner."""
+    try:
+        data = _load_json(file_path)
+        if data is None:
+            return False, "dosya okunamadı (bozuk/özel format) - güvenlik için dokunulmadı"
+        section = data.get(key_name)
+        if not isinstance(section, dict):
+            section = {}
+        if section.get(server_key) == server_data:
+            return True, "zaten güncel"
+        section[server_key] = server_data
+        data[key_name] = section
+        _backup_once(file_path)
+        _atomic_write(file_path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+        return True, "güncellendi"
+    except Exception as e:  # noqa: BLE001
+        return False, f"yazılamadı: {e}"
+
+
+def _toml_str(s: str) -> str:
+    # JSON string kaçışları TOML temel string'leri ile uyumludur (Windows ters eğik çizgileri güvenli).
+    return json.dumps(str(s), ensure_ascii=False)
+
+
+def configure_codex_toml(toml_path: pathlib.Path, venv_python: str, main_script: str, yargi_dir: str):
+    """Codex ~/.codex/config.toml: [mcp_servers.<ad>] bloğunu ekler; eski/hatalı blokları temizler."""
+    try:
+        text = toml_path.read_text(encoding="utf-8-sig") if toml_path.exists() else ""
+        ours = {
+            f"mcpServers.{SERVER_NAME}", f'mcpServers."{SERVER_NAME}"',
+            f"mcp_servers.{SERVER_NAME}", f'mcp_servers."{SERVER_NAME}"',
+            f"mcp_servers.{SERVER_NAME}.env", f'mcp_servers."{SERVER_NAME}".env',
+            f"mcpServers.{SERVER_NAME}.env",
+        }
+        kept, skipping = [], False
+        for line in text.splitlines():
+            s = line.strip()
+            if s.startswith("[") and s.endswith("]"):
+                header = s.strip("[]").strip()
+                skipping = header in ours
+            if not skipping:
+                kept.append(line)
+        block = "\n".join([
+            f"[mcp_servers.{SERVER_NAME}]",
+            f"command = {_toml_str(venv_python)}",
+            f"args = [{_toml_str(main_script)}]",
+            f"cwd = {_toml_str(yargi_dir)}",
+            "startup_timeout_sec = 120",
+            "tool_timeout_sec = 180",
+            "",
+            f"[mcp_servers.{SERVER_NAME}.env]",
+            'PYTHONIOENCODING = "utf-8"',
+            'PYTHONUTF8 = "1"',
+            f"PYTHONPATH = {_toml_str(yargi_dir)}",
+        ])
+        new_text = ("\n".join(kept).rstrip() + "\n\n" if "".join(kept).strip() else "") + block + "\n"
+        if new_text == text:
+            return True, "zaten güncel"
+        _backup_once(toml_path)
+        _atomic_write(toml_path, new_text)
+        return True, "güncellendi"
+    except Exception as e:  # noqa: BLE001
+        return False, f"yazılamadı: {e}"
+
+
+def configure_all_ai_assistants(venv_python: str, main_script: str, yargi_dir: pathlib.Path) -> list:
     """
-    Kullanıcının bilgisayarında YÜKLÜ / TESPİT EDİLEN yapay zekâ asistanlarını yapılandırır.
-    Yüklü olmayan araçlar için gereksiz klasör veya dosya oluşturmaz.
-    1. Claude Desktop (Chat Sekmesi)
-    2. Claude Code (CLI ve Claude Desktop'ın 'Code' Sekmesi: ~/.claude.json)
-    3. Gemini (Antigravity)
-    4. ChatGPT (Codex)
-    5. OpenCode
-    6. Cline (VS Code, Cursor, CLI)
-    7. Kimi Code
-    8. Hermes Agent
-    9. Cursor
+    Bilgisayarda YÜKLÜ / TESPİT EDİLEN yapay zekâ asistanlarını yapılandırır.
+    Yüklü olmayan araçlar için klasör veya dosya oluşturmaz.
+    Dönüş: [(asistan_adı, dosya_yolu, başarılı_mı, açıklama), ...]
     """
     home = pathlib.Path.home()
     is_win = sys.platform == "win32"
-    appdata = (
-        pathlib.Path(os.environ.get("APPDATA"))
-        if (is_win and os.environ.get("APPDATA"))
-        else (home / "AppData" / "Roaming")
-    )
+    appdata = pathlib.Path(os.environ.get("APPDATA") or (home / "AppData" / "Roaming"))
+    localappdata = pathlib.Path(os.environ.get("LOCALAPPDATA") or (home / "AppData" / "Local"))
+    ydir = str(yargi_dir)
+
+    env = {"PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1", "PYTHONPATH": ydir}
+    std_server = {"command": str(venv_python), "args": [str(main_script)], "env": dict(env)}
+    claude_code_server = {"type": "stdio", **std_server}
+    cwd_server = {**std_server, "cwd": ydir}
 
     results = []
-    std_server = {
-        "command": str(venv_python),
-        "args": [str(main_script)],
-        "env": {"PYTHONIOENCODING": "utf-8"},
-    }
 
-    # 1. Claude Desktop (Chat Sekmesi)
-    claude_desktop_cfg = (
-        (appdata / "Claude" / "claude_desktop_config.json")
-        if is_win
-        else (home / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json")
-    )
-    claude_desktop_installed = claude_desktop_cfg.parent.exists()
-    if claude_desktop_installed:
-        configure_json_file(claude_desktop_cfg, "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
-        results.append(("Claude Desktop (Chat)", str(claude_desktop_cfg), True))
+    def add(label, path, ok_msg):
+        ok, msg = ok_msg
+        results.append((label, str(path), ok, msg))
 
-    # 2. Claude Code (CLI ve Claude Desktop'ın 'Code' Sekmesi)
-    # Claude Desktop'ın içindeki Code sekmesi ve harici Claude Code CLI ~/.claude.json dosyasını okur
+    # 1. Claude Desktop (Chat sekmesi) - klasik kurulum + Microsoft Store (MSIX) kurulumu
+    if is_win:
+        desktop_cfgs = [appdata / "Claude" / "claude_desktop_config.json"]
+        pkgs = localappdata / "Packages"
+        if pkgs.exists():
+            for p in pkgs.glob("Claude_*"):
+                desktop_cfgs.append(p / "LocalCache" / "Roaming" / "Claude" / "claude_desktop_config.json")
+    else:
+        desktop_cfgs = [home / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"]
+    claude_desktop_installed = False
+    for cfg in desktop_cfgs:
+        if cfg.parent.exists():
+            claude_desktop_installed = True
+            add("Claude Desktop (Chat)", cfg, configure_json_file(cfg, "mcpServers", SERVER_NAME, std_server))
+
+    # 2. Claude Code (CLI + Claude Desktop 'Code' sekmesi) -> ~/.claude.json
+    #    'claude mcp add' komutuna (ve dolayısıyla Node.js'e) gerek yoktur; dosya doğrudan güncellenir.
     claude_code_cfg = home / ".claude.json"
-    claude_cli_bin = shutil.which("claude.cmd") if is_win else shutil.which("claude")
-    claude_code_installed = claude_code_cfg.exists() or (home / ".claude").exists() or (claude_cli_bin is not None) or claude_desktop_installed
-    if claude_code_installed:
-        configure_json_file(claude_code_cfg, "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
-        if claude_cli_bin:
-            try:
-                subprocess.run(
-                    [claude_cli_bin, "mcp", "add", "--scope", "user", "yargi-ve-mevzuat-mcp", "--", str(venv_python), str(main_script)],
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
-                )
-            except Exception:
-                pass
-        results.append(("Claude Code (Code Sekmesi)", str(claude_code_cfg), True))
+    if claude_code_cfg.exists() or (home / ".claude").exists() or shutil.which("claude") or claude_desktop_installed:
+        add("Claude Code (CLI/Code)", claude_code_cfg,
+            configure_json_file(claude_code_cfg, "mcpServers", SERVER_NAME, claude_code_server))
 
-    # 3. Gemini (Antigravity)
-    antigravity_dir = home / ".gemini"
-    if antigravity_dir.exists():
-        antigravity_cfg = antigravity_dir / "config" / "mcp_config.json"
-        configure_json_file(antigravity_cfg, "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
-        results.append(("Gemini (Antigravity)", str(antigravity_cfg), True))
+    # 3. Gemini / Antigravity
+    gemini_dir = home / ".gemini"
+    if gemini_dir.exists():
+        targets = [gemini_dir / "config" / "mcp_config.json"]
+        if (gemini_dir / "antigravity").exists():
+            targets.append(gemini_dir / "antigravity" / "mcp_config.json")
+        for cfg in targets:
+            add("Antigravity (Gemini)", cfg, configure_json_file(cfg, "mcpServers", SERVER_NAME, cwd_server))
+        gemini_cli = gemini_dir / "settings.json"
+        if gemini_cli.exists():
+            add("Gemini CLI", gemini_cli,
+                configure_json_file(gemini_cli, "mcpServers", SERVER_NAME, {**cwd_server, "timeout": 180000}))
 
-    # 4. ChatGPT (Codex)
+    # 4. ChatGPT (Codex) -> ~/.codex/config.toml  ([mcp_servers.*] biçimi)
     codex_dir = home / ".codex"
     if codex_dir.exists():
-        codex_json = codex_dir / "mcp.json"
-        configure_json_file(codex_json, "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
-        codex_toml = codex_dir / "config.toml"
-        toml_snippet = (
-            '\n[mcpServers.yargi-ve-mevzuat-mcp]\n'
-            f'command = "{venv_python}"\n'
-            f'args = ["{main_script}"]\n'
-            'env = { PYTHONIOENCODING = "utf-8" }\n'
-        )
-        if codex_toml.exists():
-            c_text = codex_toml.read_text(encoding="utf-8")
-            if "[mcpServers.yargi-ve-mevzuat-mcp]" not in c_text:
-                codex_toml.write_text(c_text.strip() + "\n" + toml_snippet, encoding="utf-8")
-        else:
-            codex_toml.write_text(toml_snippet.strip() + "\n", encoding="utf-8")
-        results.append(("ChatGPT (Codex)", str(codex_toml), True))
+        cfg = codex_dir / "config.toml"
+        add("ChatGPT (Codex)", cfg, configure_codex_toml(cfg, str(venv_python), str(main_script), ydir))
 
     # 5. OpenCode
-    opencode_cfg = (
-        (appdata / "opencode" / "opencode.json")
-        if is_win
-        else (home / ".config" / "opencode" / "opencode.json")
-    )
+    opencode_cfg = (appdata / "opencode" / "opencode.json") if is_win else (home / ".config" / "opencode" / "opencode.json")
+    if not opencode_cfg.parent.exists() and is_win and (home / ".config" / "opencode").exists():
+        opencode_cfg = home / ".config" / "opencode" / "opencode.json"
     if opencode_cfg.parent.exists():
-        opencode_server = {
+        add("OpenCode", opencode_cfg, configure_json_file(opencode_cfg, "mcp", SERVER_NAME, {
             "type": "local",
             "command": [str(venv_python), str(main_script)],
-            "environment": {"PYTHONIOENCODING": "utf-8"},
+            "environment": dict(env),
             "enabled": True,
-        }
-        configure_json_file(opencode_cfg, "mcp", "yargi-ve-mevzuat-mcp", opencode_server)
-        results.append(("OpenCode", str(opencode_cfg), True))
+        }))
 
-    # 6. Cline (VS Code, Cursor & CLI)
-    cline_server = dict(std_server)
-    cline_server["disabled"] = False
-    cline_server["autoApprove"] = []
-
-    cline_paths = []
-    if is_win:
-        cline_paths.append((appdata / "Code" / "User" / "globalStorage" / "saoudrizwan.claude-dev" / "settings" / "cline_mcp_settings.json", "Cline (VS Code)"))
-        cline_paths.append((appdata / "Cursor" / "User" / "globalStorage" / "saoudrizwan.claude-dev" / "settings" / "cline_mcp_settings.json", "Cline (Cursor)"))
-    else:
-        cline_paths.append((home / "Library" / "Application Support" / "Code" / "User" / "globalStorage" / "saoudrizwan.claude-dev" / "settings" / "cline_mcp_settings.json", "Cline (VS Code)"))
-        cline_paths.append((home / "Library" / "Application Support" / "Cursor" / "User" / "globalStorage" / "saoudrizwan.claude-dev" / "settings" / "cline_mcp_settings.json", "Cline (Cursor)"))
-    cline_paths.append((home / ".cline" / "data" / "settings" / "cline_mcp_settings.json", "Cline (CLI)"))
-
+    # 6. Cline (VS Code, Cursor, CLI)
+    cline_server = {**std_server, "disabled": False, "autoApprove": []}
+    base = appdata if is_win else (home / "Library" / "Application Support")
+    cline_paths = [
+        (base / "Code" / "User" / "globalStorage" / "saoudrizwan.claude-dev" / "settings" / "cline_mcp_settings.json", "Cline (VS Code)"),
+        (base / "Cursor" / "User" / "globalStorage" / "saoudrizwan.claude-dev" / "settings" / "cline_mcp_settings.json", "Cline (Cursor)"),
+        (home / ".cline" / "data" / "settings" / "cline_mcp_settings.json", "Cline (CLI)"),
+    ]
     for c_path, c_label in cline_paths:
         if c_path.parent.exists():
-            configure_json_file(c_path, "mcpServers", "yargi-ve-mevzuat-mcp", cline_server)
-            results.append((c_label, str(c_path), True))
+            add(c_label, c_path, configure_json_file(c_path, "mcpServers", SERVER_NAME, cline_server))
 
     # 7. Kimi Code
     kimi_dir = home / ".kimi-code"
     if kimi_dir.exists():
-        kimi_cfg = kimi_dir / "mcp.json"
-        configure_json_file(kimi_cfg, "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
-        results.append(("Kimi Code", str(kimi_cfg), True))
+        cfg = kimi_dir / "mcp.json"
+        add("Kimi Code", cfg, configure_json_file(cfg, "mcpServers", SERVER_NAME, std_server))
 
     # 8. Hermes Agent
     hermes_dir = home / ".hermes"
     if hermes_dir.exists():
-        hermes_cfg = hermes_dir / "config.yaml"
+        cfg = hermes_dir / "config.yaml"
         try:
             import yaml
             h_data = {}
-            if hermes_cfg.exists() and hermes_cfg.stat().st_size > 0:
-                try:
-                    h_data = yaml.safe_load(hermes_cfg.read_text(encoding="utf-8")) or {}
-                except Exception:
-                    h_data = {}
-            if not isinstance(h_data.get("mcp_servers"), dict):
-                h_data["mcp_servers"] = {}
-            h_data["mcp_servers"]["yargi-ve-mevzuat-mcp"] = {
-                "command": str(venv_python),
-                "args": [str(main_script)],
-                "env": {"PYTHONIOENCODING": "utf-8"},
-            }
-            hermes_cfg.write_text(yaml.safe_dump(h_data, sort_keys=False, allow_unicode=True), encoding="utf-8")
-            results.append(("Hermes Agent", str(hermes_cfg), True))
-        except Exception:
-            pass
+            if cfg.exists() and cfg.stat().st_size > 0:
+                h_data = yaml.safe_load(cfg.read_text(encoding="utf-8"))
+                if not isinstance(h_data, dict):
+                    raise ValueError("beklenmeyen YAML yapısı")
+            servers = h_data.get("mcp_servers") if isinstance(h_data.get("mcp_servers"), dict) else {}
+            if servers.get(SERVER_NAME) == std_server:
+                add("Hermes Agent", cfg, (True, "zaten güncel"))
+            else:
+                servers[SERVER_NAME] = dict(std_server)
+                h_data["mcp_servers"] = servers
+                _backup_once(cfg)
+                _atomic_write(cfg, yaml.safe_dump(h_data, sort_keys=False, allow_unicode=True))
+                add("Hermes Agent", cfg, (True, "güncellendi"))
+        except Exception as e:  # noqa: BLE001
+            add("Hermes Agent", cfg, (False, f"dokunulmadı: {e}"))
 
-    # 9. Cursor (Doğrudan)
+    # 9. Cursor
     cursor_dir = home / ".cursor"
     if cursor_dir.exists():
-        cursor_cfg = cursor_dir / "mcp.json"
-        configure_json_file(cursor_cfg, "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
-        results.append(("Cursor", str(cursor_cfg), True))
+        cfg = cursor_dir / "mcp.json"
+        add("Cursor", cfg, configure_json_file(cfg, "mcpServers", SERVER_NAME, std_server))
 
-    # 10. Proje yerel .mcp.json (yargi-mcp dizini içi)
-    if yargi_dir:
-        try:
-            configure_json_file(yargi_dir / ".mcp.json", "mcpServers", "yargi-ve-mevzuat-mcp", std_server)
-        except Exception:
-            pass
+    # 10. Proje içi .mcp.json (git tarafından yok sayılır)
+    configure_json_file(yargi_dir / ".mcp.json", "mcpServers", SERVER_NAME, claude_code_server)
 
     return results
 
 
+# =============================================================================
+# Doğrulama
+# =============================================================================
+WIN_ACCESS_VIOLATION = (3221225477, -1073741819)  # 0xC0000005
+
+
+def check_server_import(venv_python: str, yargi_dir: pathlib.Path) -> bool:
+    """Sunucu modülünün ayrı bir süreçte çökmeden yüklenebildiğini doğrular."""
+    env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1", PYTHONPATH=str(yargi_dir))
+    try:
+        proc = subprocess.run(
+            [venv_python, "-c", "import mcp_server_main; print('OK')"],
+            cwd=str(yargi_dir), env=env, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=300,
+        )
+    except subprocess.TimeoutExpired:
+        print("      -> [UYARI] Sunucu yüklemesi 5 dakikada tamamlanamadı (antivirüs taraması olabilir).")
+        return False
+    if proc.returncode == 0:
+        print("      -> [OK] MCP sunucusu çökmeden yükleniyor.")
+        return True
+    print(f"      -> [HATA] MCP sunucusu yüklenemedi (çıkış kodu: {proc.returncode}).")
+    if proc.returncode in WIN_ACCESS_VIOLATION:
+        print("         Windows erişim ihlali (0xC0000005): Microsoft Visual C++ Redistributable eksik/eski.")
+        print("         Çözüm: https://aka.ms/vs/17/release/vc_redist.x64.exe indirip kurun, sonra kurulumu tekrar çalıştırın.")
+    tail = (proc.stderr or "").strip().splitlines()[-8:]
+    for line in tail:
+        print("         " + line)
+    return False
+
+
 async def run_live_verification(yargi_dir: pathlib.Path) -> None:
     """UYAP Mevzuat ve Bedesten İçtihat API'lerine canlı doğrulama testi yapar."""
-    sys.path.insert(0, str(yargi_dir))
+    if str(yargi_dir) not in sys.path:
+        sys.path.insert(0, str(yargi_dir))
+    import logging
+    logging.disable(logging.WARNING)  # Test sırasında sunucunun ayrıntılı günlüklerini gizle
     import mcp_server_main as m
 
     res_mevzuat = await m.mevzuat_ara(
-        query="",
-        phrase="",
-        mevzuat_turu="KANUN",
-        mevzuat_no="6098",
-        baslangic_tarihi="",
-        bitis_tarihi="",
-        sayfa=1,
-        sayfa_boyutu=1,
+        query="", phrase="", mevzuat_turu="KANUN", mevzuat_no="6098",
+        baslangic_tarihi="", bitis_tarihi="", sayfa=1, sayfa_boyutu=1,
     )
     if not res_mevzuat.get("results"):
-        raise RuntimeError("UYAP Mevzuat testi başarısız: 6098 sayılı kanun bulunamadı.")
-    kanun_adi = res_mevzuat["results"][0]["mevzuat_adi"]
-    mev_id = res_mevzuat["results"][0]["mevzuat_id"]
-    print(f"      -> [TEST 1 BAŞARILI] UYAP Mevzuat: {kanun_adi} (ID: {mev_id})")
+        raise RuntimeError("UYAP Mevzuat: 6098 sayılı kanun bulunamadı.")
+    first = res_mevzuat["results"][0]
+    print(f"      -> [TEST 1 OK] UYAP Mevzuat: {first['mevzuat_adi']} (ID: {first['mevzuat_id']})")
 
     app = m.create_app()
     res_bedesten = await app.call_tool(
@@ -295,11 +402,17 @@ async def run_live_verification(yargi_dir: pathlib.Path) -> None:
         {"phrase": "kira", "court_types": ["YARGITAYKARARI", "DANISTAYKARAR"]},
     )
     if not res_bedesten:
-        raise RuntimeError("UYAP Bedesten İçtihat testi başarısız.")
-    print("      -> [TEST 2 BAŞARILI] Yargıtay & Danıştay Bedesten API bağlantısı aktif.")
+        raise RuntimeError("UYAP Bedesten İçtihat yanıt vermedi.")
+    print("      -> [TEST 2 OK] Yargıtay & Danıştay Bedesten API bağlantısı aktif.")
 
 
 def main() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
+        except Exception:
+            pass
+
     if len(sys.argv) < 3:
         print("Kullanım: python setup_helper.py <yargi_mcp_dir> <venv_python_path>")
         sys.exit(1)
@@ -309,16 +422,34 @@ def main() -> None:
     main_script = str(yargi_dir / "mcp_server_main.py")
 
     ensure_mevzuat_enhancements(yargi_dir)
-    print("      -> OK: UYAP Mevzuat ve Yargı modülleri doğrulandı.")
 
-    print("\n   [Yapay Zekâ Asistanları Otomatik Yapılandırması]")
-    configured_list = configure_all_ai_assistants(venv_python, main_script, yargi_dir)
-    for ai_name, cfg_path, is_installed in configured_list:
-        status_tag = "[KURULU]" if is_installed else "[HAZIRLANDI]"
-        print(f"      -> {status_tag:13} {ai_name:22} : {cfg_path}")
-    print("")
+    print("   [1] MCP sunucusu yükleme testi")
+    server_ok = check_server_import(venv_python, yargi_dir)
 
-    asyncio.run(run_live_verification(yargi_dir))
+    print("\n   [2] Yapay zekâ asistanları yapılandırılıyor")
+    configured = configure_all_ai_assistants(venv_python, main_script, yargi_dir)
+    if not configured:
+        print("      -> Desteklenen bir yapay zekâ asistanı bulunamadı.")
+        print("         Asistanı kurduktan sonra bu kurulumu tekrar çalıştırmanız yeterli.")
+    for name, path, ok, msg in configured:
+        tag = "[OK]  " if ok else "[ATLA]"
+        print(f"      -> {tag} {name:24} {msg:14} {path}")
+
+    print("\n   [3] Canlı UYAP bağlantı testi")
+    if server_ok:
+        try:
+            asyncio.run(run_live_verification(yargi_dir))
+        except Exception as e:  # noqa: BLE001
+            print(f"      -> [UYARI] Canlı test tamamlanamadı: {e}")
+            print("         (Devlet sunucuları geçici olarak yanıt vermiyor olabilir; kurulum yine de tamamdır.)")
+    else:
+        print("      -> Sunucu yüklenemediği için atlandı.")
+
+    # Çıkışta sunucunun temizlik günlükleri kullanıcıyı yanıltmasın
+    import logging
+    logging.disable(logging.CRITICAL)
+    sys.stdout.flush()
+    os._exit(0 if server_ok else 2)
 
 
 if __name__ == "__main__":

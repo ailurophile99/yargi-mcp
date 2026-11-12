@@ -1,2 +1,11 @@
-# Auto detect text files and perform LF normalization
+# Metin dosyalari depoda LF olarak tutulur
 * text=auto
+
+# Windows betikleri: cmd.exe LF satir sonlarinda bozuluyor. Depoda (ve raw.githubusercontent
+# uzerinden indirilen dosyada) CRLF olarak AYNEN saklanir.
+*.bat -text
+*.cmd -text
+
+# Unix betikleri her zaman LF olmali
+*.sh      text eol=lf
+*.command text eol=lf

@@ -1,32 +1,56 @@
 @echo off
-chcp 65001 >nul
-title Yargi ve UYAP Mevzuat MCP - Otomatik Kurulum
+setlocal EnableExtensions DisableDelayedExpansion
+title Yargi ve UYAP Mevzuat MCP - Kurulum
+color 0F
 
 echo ================================================================
-echo    Yargi ve UYAP Mevzuat MCP - Windows Kurulum Baslatiliyor...  
+echo    Yargi ve UYAP Mevzuat MCP - Windows Kurulumu
 echo ================================================================
 echo.
-
-set "SCRIPT_DIR=%~dp0"
-
-if exist "%SCRIPT_DIR%install.ps1" (
-    echo [1/2] Yerel kurulum betigi calistiriliyor...
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; & '%SCRIPT_DIR%install.ps1'"
-) else if exist "%SCRIPT_DIR%kurulum_windows.ps1" (
-    echo [1/2] Yerel baslatici calistiriliyor...
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; & '%SCRIPT_DIR%kurulum_windows.ps1'"
-) else (
-    echo [BILGI] Yerel kurulum dosyalari bulunamadi (tek dosya calistirildi).
-    echo         Guncel kurulum GitHub uzerinden otomatik baslatiliyor...
-    echo.
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; irm https://raw.githubusercontent.com/ailurophile99/yargi-mcp/master/install.ps1 | iex"
-)
-
-if %ERRORLEVEL% neq 0 (
-    echo.
-    echo [HATA] Kurulum sirasinda bir sorun olustu (Hata kodu: %ERRORLEVEL%).
-    echo Lutfen internet baglantinizi ve PowerShell izinlerinizi kontrol edin.
-)
-
+echo  Bu pencere kurulum bitene kadar acik kalacak.
+echo  Internet hizina gore 2-5 dakika surebilir.
 echo.
-pause
+
+set "YARGI_FROM_BAT=1"
+set "PSEXE=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+if not exist "%PSEXE%" set "PSEXE=powershell.exe"
+set "LOCAL_PS1=%~dp0install.ps1"
+set "URL=https://raw.githubusercontent.com/ailurophile99/yargi-mcp/master/install.ps1"
+
+echo [*] Guncel kurulum betigi GitHub uzerinden indiriliyor...
+"%PSEXE%" -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor 3072; $s = (New-Object Net.WebClient).DownloadString($env:URL) } catch { Write-Host ('    Indirme hatasi: ' + $_.Exception.Message); exit 3 }; . ([ScriptBlock]::Create($s))"
+set "RC=%ERRORLEVEL%"
+if "%RC%"=="3" goto try_local
+goto finish
+
+:try_local
+echo.
+if not exist "%LOCAL_PS1%" goto no_internet
+echo [*] Internet uzerinden alinamadi, yerel install.ps1 kullaniliyor...
+"%PSEXE%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%LOCAL_PS1%"
+set "RC=%ERRORLEVEL%"
+goto finish
+
+:no_internet
+echo [HATA] Kurulum betigi indirilemedi.
+echo        Internet baglantinizi kontrol edip bu dosyaya tekrar cift tiklayin.
+set "RC=1"
+goto finish
+
+:finish
+echo.
+if "%RC%"=="0" goto success
+echo ----------------------------------------------------------------
+echo  Kurulum tamamlanamadi. Hata kodu: %RC%
+echo  Bu pencerenin fotografini cekip gonderebilirsiniz.
+echo ----------------------------------------------------------------
+goto end
+
+:success
+echo  Kurulum bitti. Yapay zeka uygulamanizi tamamen kapatip yeniden acin.
+
+:end
+echo.
+echo Pencereyi kapatmak icin bir tusa basin...
+pause >nul
+endlocal

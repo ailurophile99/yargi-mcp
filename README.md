@@ -14,18 +14,23 @@ Terminal uygulamasını açın ve şu tek satırı yapıştırıp **Enter**'a ba
 curl -fsSL https://raw.githubusercontent.com/ailurophile99/yargi-mcp/master/install.sh | bash
 ```
 
-### 🪟 Windows (İki Farklı Kolay Yol)
+### 🪟 Windows
 
-#### 1. Yol: Tek Dosya İndirip Çift Tıklama (En Kolay)
-1. [**kurulum_windows.bat İndir**](https://raw.githubusercontent.com/ailurophile99/yargi-mcp/master/kurulum_windows.bat) *(Bağlantıya sağ tıklayıp "Farklı Kaydet" yapabilir veya doğrudan indirebilirsiniz)*
-2. İndirdiğiniz `kurulum_windows.bat` dosyasına **çift tıklayın**!
-   > *Windows SmartScreen mavi uyarı ekranı verirse: **"Ek bilgi" -> "Yine de çalıştır"** demeniz yeterlidir.*
+#### 1. Yol: İndir ve Çift Tıkla (En Kolay)
+1. **[Yargi-MCP-Kurulum-Windows.zip dosyasını indirin](https://github.com/ailurophile99/yargi-mcp/releases/latest/download/Yargi-MCP-Kurulum-Windows.zip)**
+2. ZIP'e sağ tıklayıp **"Tümünü ayıkla"** deyin, çıkan `kurulum_windows.bat` dosyasına **çift tıklayın**.
+3. Mavi **"Windows bilgisayarınızı korudu"** ekranı çıkarsa: **"Ek bilgi" → "Yine de çalıştır"**.
+4. Visual C++ için yönetici izni sorulursa **"Evet"** deyin. Pencere kurulum bitene kadar açık kalır.
 
-#### 2. Yol: PowerShell Tek Satır Komutu
-PowerShell uygulamasını açın ve şu tek satırı yapıştırıp **Enter**'a basın:
+> Doğrudan `.bat` indirmek isterseniz: [kurulum_windows.bat](https://github.com/ailurophile99/yargi-mcp/releases/latest/download/kurulum_windows.bat) (tarayıcı "tehlikeli olabilir" derse **"Sakla"** seçin).
+
+#### 2. Yol: PowerShell Tek Satır
+Başlat menüsüne **PowerShell** yazıp açın, şu satırı yapıştırıp **Enter**'a basın:
 ```powershell
 irm https://raw.githubusercontent.com/ailurophile99/yargi-mcp/master/install.ps1 | iex
 ```
+
+> Kurulum tekrar çalıştırılabilir: her seferinde en güncel sürüme günceller ve kaldığı yerden devam eder.
 
 ---
 
@@ -52,9 +57,19 @@ Kurulum betiği aşağıdaki tüm ortamlara otomatik entegre olur:
 ## 🛠️ Alternatif Kurulum Yolları
 
 ### Klasörden Çift Tıklamayla Kurulum
-Depoyu ZIP olarak indirdiyseniz veya klonladıysanız:
 * **Windows:** `kurulum_windows.bat` dosyasına çift tıklayın.
-* **macOS:** `kurulum_macos.command` dosyasına çift tıklayın.
+* **macOS:** `kurulum_macos.command` dosyasına sağ tıklayıp **Aç** deyin (macOS 15+: *Sistem Ayarları → Gizlilik ve Güvenlik → Yine de Aç*). Terminal komutu bu adımları gerektirmediği için macOS'ta önerilen yoldur.
+
+Her iki başlatıcı da tek başına indirilse bile çalışır; kurulum her zaman `~/yargi-mcp` (Windows: `C:\Users\<ad>\yargi-mcp`) klasörüne yapılır.
+
+### Sorun Giderme
+| Belirti | Çözüm |
+| :--- | :--- |
+| `.bat` açılıp hemen kapanıyor / hiç açılmıyor | ZIP'ten ayıkladıktan sonra çalıştırın veya PowerShell tek satır komutunu kullanın. |
+| `claude : The term 'claude' is not recognized` | `claude mcp add` gerekmez; kurulum `~/.claude.json` dosyasını doğrudan günceller. Uygulamayı tamamen kapatıp açın. |
+| Sunucu `0xC0000005` ile çöküyor | Kurulum Visual C++ çalışma zamanını otomatik kurar; izin verilmediyse [vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe) kurup kurulumu tekrar çalıştırın. |
+| Araçlar asistanda görünmüyor | Asistanı tamamen kapatıp açın (Claude: tepsi simgesi → Quit / macOS: Cmd+Q). Asistanı kurulumdan *sonra* yüklediyseniz kurulumu tekrar çalıştırın. |
+| Ayar dosyam bozuldu mu? | Değiştirilen her dosyanın ilk hali `<dosya>.yargi-yedek` olarak saklanır. Okunamayan dosyalara hiç dokunulmaz. |
 
 ### `uvx` İle Doğrudan Çalıştırma
 ```json

@@ -1,5 +1,12 @@
 # mcp_server_main.py
 
+# --- Alt modüllerin (bedesten_mcp_module vb.) her istemcide bulunabilmesi için ---
+# İstemci sunucuyu hangi çalışma dizininden başlatırsa başlatsın proje kökü sys.path'e eklenir.
+import os as _os, sys as _sys
+_PROJECT_ROOT = _os.path.dirname(_os.path.abspath(__file__))
+if _PROJECT_ROOT not in _sys.path:
+    _sys.path.insert(0, _PROJECT_ROOT)
+
 # --- MCP Spec Compliance: Reject null JSON-RPC IDs ---
 # The mcp SDK's JSONRPCNotification uses extra="allow", which causes
 # {"id": null} to be misclassified as a notification (202 Accepted).

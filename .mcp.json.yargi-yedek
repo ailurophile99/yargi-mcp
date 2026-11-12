@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "yargi-ve-mevzuat-mcp": {
+      "command": "/Users/burakfenerci/yargi-mcp/.venv/bin/python",
+      "args": [
+        "/Users/burakfenerci/yargi-mcp/mcp_server_main.py"
+      ],
+      "env": {
+        "PYTHONIOENCODING": "utf-8"
+      }
+    }
+  }
+}
