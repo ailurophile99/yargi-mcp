@@ -19,3 +19,7 @@ __pycache__/
 
 cache/
 data/
+
+# Kurulum yedekleri
+*.yargi-yedek
+*.yargi-tmp
