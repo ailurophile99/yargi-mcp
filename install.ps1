@@ -138,20 +138,24 @@ function Install-YargiMcp {
     foreach ($k in 'HKLM:\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64',
                    'HKLM:\SOFTWARE\WOW6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes\x64') {
         $v = Get-ItemProperty -Path $k -ErrorAction SilentlyContinue
-        if ($v -and $v.Installed -eq 1) { $vcVer = [version]("{0}.{1}.{2}" -f $v.Major, $v.Minor, $v.Bld); break }
+        if ($v -and $v.Installed -eq 1) {
+            try { $vcVer = [version]("{0}.{1}.{2}" -f $v.Major, $v.Minor, $v.Bld); break } catch { }
+        }
     }
     if ($vcVer -and $vcVer -ge [version]'14.40.0') {
         Ok "Visual C++ $vcVer yuklu."
     } else {
         if ($vcVer) { Info "Visual C++ $vcVer eski." } else { Info "Visual C++ calisma zamani bulunamadi." }
         Info "Guncel surum indiriliyor (Windows yonetici izni penceresi cikarsa 'Evet' deyin)..."
+        $vcExe = Join-Path $env:TEMP 'vc_redist.x64.exe'
         try {
-            $vcExe = Join-Path $env:TEMP 'vc_redist.x64.exe'
             Invoke-WebRequest -Uri 'https://aka.ms/vs/17/release/vc_redist.x64.exe' -OutFile $vcExe -UseBasicParsing -ErrorAction Stop
             $p = Start-Process -FilePath $vcExe -ArgumentList '/install', '/quiet', '/norestart' -Verb RunAs -Wait -PassThru -ErrorAction Stop
             if ($p.ExitCode -in 0, 1638, 3010) { Ok "Visual C++ calisma zamani hazir." } else { Warn "Visual C++ kurulumu kod $($p.ExitCode) ile bitti." }
         } catch {
             Warn "Visual C++ kurulamadi veya izin verilmedi. Kurulum devam ediyor (cogu sistemde gerekmez)."
+        } finally {
+            Remove-Item $vcExe -Force -ErrorAction SilentlyContinue
         }
     }
 

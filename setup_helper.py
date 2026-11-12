@@ -193,7 +193,13 @@ def configure_codex_toml(toml_path: pathlib.Path, venv_python: str, main_script:
             s = line.strip()
             if s.startswith("[") and s.endswith("]"):
                 header = s.strip("[]").strip()
-                skipping = header in ours
+                skipping = (
+                    header in ours
+                    or header.startswith(f"mcp_servers.{SERVER_NAME}.")
+                    or header.startswith(f'mcp_servers."{SERVER_NAME}".')
+                    or header.startswith(f"mcpServers.{SERVER_NAME}.")
+                    or header.startswith(f'mcpServers."{SERVER_NAME}".')
+                )
             if not skipping:
                 kept.append(line)
         block = "\n".join([
@@ -355,11 +361,18 @@ WIN_ACCESS_VIOLATION = (3221225477, -1073741819)  # 0xC0000005
 
 
 def check_server_import(venv_python: str, yargi_dir: pathlib.Path) -> bool:
-    """Sunucu modülünün ayrı bir süreçte çökmeden yüklenebildiğini doğrular."""
+    """Sunucu modülünün ve ONNX/Magika altyapısının ayrı bir süreçte çökmeden yüklendiğini doğrular."""
     env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1", PYTHONPATH=str(yargi_dir))
+    probe = (
+        "import logging, os, mcp_server_main; "
+        "from markitdown import MarkItDown; MarkItDown(); "
+        "print('OK', flush=True); "
+        "logging.disable(logging.CRITICAL); "
+        "os._exit(0)"
+    )
     try:
         proc = subprocess.run(
-            [venv_python, "-c", "import mcp_server_main; print('OK')"],
+            [venv_python, "-c", probe],
             cwd=str(yargi_dir), env=env, capture_output=True, text=True,
             encoding="utf-8", errors="replace", timeout=300,
         )
