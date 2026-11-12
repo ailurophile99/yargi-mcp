@@ -255,11 +255,13 @@ def configure_all_ai_assistants(venv_python: str, main_script: str, yargi_dir: p
         if pkgs.exists():
             for p in pkgs.glob("Claude_*"):
                 desktop_cfgs.append(p / "LocalCache" / "Roaming" / "Claude" / "claude_desktop_config.json")
+        claude_app_installed = (localappdata / "AnthropicClaude").exists()
     else:
         desktop_cfgs = [home / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"]
+        claude_app_installed = pathlib.Path("/Applications/Claude.app").exists()
     claude_desktop_installed = False
-    for cfg in desktop_cfgs:
-        if cfg.parent.exists():
+    for i, cfg in enumerate(desktop_cfgs):
+        if cfg.parent.exists() or (i == 0 and claude_app_installed):
             claude_desktop_installed = True
             add("Claude Desktop (Chat)", cfg, configure_json_file(cfg, "mcpServers", SERVER_NAME, std_server))
 
@@ -272,20 +274,27 @@ def configure_all_ai_assistants(venv_python: str, main_script: str, yargi_dir: p
 
     # 3. Gemini / Antigravity
     gemini_dir = home / ".gemini"
-    if gemini_dir.exists():
+    agy_installed = bool(shutil.which("agy") or shutil.which("antigravity")) or (
+        (localappdata / "Programs" / "Antigravity").exists() or (localappdata / "Antigravity").exists()
+        if is_win else pathlib.Path("/Applications/Antigravity.app").exists()
+    )
+    if gemini_dir.exists() or agy_installed:
         targets = [gemini_dir / "config" / "mcp_config.json"]
-        if (gemini_dir / "antigravity").exists():
+        if (gemini_dir / "antigravity").exists() or agy_installed:
             targets.append(gemini_dir / "antigravity" / "mcp_config.json")
         for cfg in targets:
             add("Antigravity (Gemini)", cfg, configure_json_file(cfg, "mcpServers", SERVER_NAME, cwd_server))
         gemini_cli = gemini_dir / "settings.json"
-        if gemini_cli.exists():
+        if gemini_cli.exists() or shutil.which("gemini"):
             add("Gemini CLI", gemini_cli,
                 configure_json_file(gemini_cli, "mcpServers", SERVER_NAME, {**cwd_server, "timeout": 180000}))
 
     # 4. ChatGPT (Codex) -> ~/.codex/config.toml  ([mcp_servers.*] biçimi)
     codex_dir = home / ".codex"
-    if codex_dir.exists():
+    codex_installed = codex_dir.exists() or bool(shutil.which("codex")) or (
+        False if is_win else pathlib.Path("/Applications/Codex.app").exists()
+    )
+    if codex_installed:
         cfg = codex_dir / "config.toml"
         add("ChatGPT (Codex)", cfg, configure_codex_toml(cfg, str(venv_python), str(main_script), ydir))
 
@@ -344,7 +353,11 @@ def configure_all_ai_assistants(venv_python: str, main_script: str, yargi_dir: p
 
     # 9. Cursor
     cursor_dir = home / ".cursor"
-    if cursor_dir.exists():
+    cursor_installed = cursor_dir.exists() or bool(shutil.which("cursor")) or (
+        (localappdata / "Programs" / "cursor").exists()
+        if is_win else pathlib.Path("/Applications/Cursor.app").exists()
+    )
+    if cursor_installed:
         cfg = cursor_dir / "mcp.json"
         add("Cursor", cfg, configure_json_file(cfg, "mcpServers", SERVER_NAME, std_server))
 

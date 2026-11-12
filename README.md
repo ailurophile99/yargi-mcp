@@ -4,30 +4,27 @@ Türk yargı kararlarına (**Yargıtay, Danıştay, UYAP Emsal, Bölge Adliye / 
 
 ---
 
-## ⚡ Tek Satırla Evrensel Kurulum (Windows & macOS)
+## ⚡ Tek Adımda Otomatik Kurulum
 
-Hangi yapay zekâyı kullanırsanız kullanın, terminalinize tek bir satır yapıştırmanız yeterlidir. Kurulum motoru bilgisayarınızdaki asistanları **otomatik tespit eder** ve MCP ayarlarını anında tanımlar:
-
-### 🍎 macOS / Linux
-Terminal uygulamasını açın ve şu tek satırı yapıştırıp **Enter**'a basın:
-```bash
-curl -fsSL https://raw.githubusercontent.com/ailurophile99/yargi-mcp/master/install.sh | bash
-```
+Bilgisayarınızda Python, Node.js veya Git kurulu olması gerekmez. Kurulum betiği eksik tüm bileşenleri ve 55 UYAP/Yargı aracını indirir, kullandığınız yapay zekâ uygulamalarını (**Claude, Antigravity, ChatGPT Codex, Cursor vb.**) otomatik tanıyıp kullanıma hazır hale getirir.
 
 ### 🪟 Windows
 
-#### 1. Yol: İndir ve Çift Tıkla (En Kolay)
-1. **[Yargi-MCP-Kurulum-Windows.zip dosyasını indirin](https://github.com/ailurophile99/yargi-mcp/releases/latest/download/Yargi-MCP-Kurulum-Windows.zip)**
-2. ZIP'e sağ tıklayıp **"Tümünü ayıkla"** deyin, çıkan `kurulum_windows.bat` dosyasına **çift tıklayın**.
-3. Mavi **"Windows bilgisayarınızı korudu"** ekranı çıkarsa: **"Ek bilgi" → "Yine de çalıştır"**.
-4. Visual C++ için yönetici izni sorulursa **"Evet"** deyin. Pencere kurulum bitene kadar açık kalır.
+#### 1. Yol: Tek Dosyayı İndirip Çift Tıklama
+1. 👉 [**`kurulum_windows.bat` İndir**](https://github.com/ailurophile99/yargi-mcp/releases/latest/download/kurulum_windows.bat) *(Tarayıcı sorarsa **"Sakla"** seçin; kurumsal ağınız doğrudan `.bat` indirmenize izin vermezse [ZIP sürümünü](https://github.com/ailurophile99/yargi-mcp/releases/latest/download/Yargi-MCP-Kurulum-Windows.zip) indirebilirsiniz).*
+2. İndirdiğiniz `kurulum_windows.bat` dosyasına **çift tıklayın**.
+3. Mavi **"Windows bilgisayarınızı korudu"** uyarısı çıkarsa **"Ek bilgi" → "Yine de çalıştır"** deyin (Visual C++ için yönetici izni sorulursa **"Evet"**).
 
-> Doğrudan `.bat` indirmek isterseniz: [kurulum_windows.bat](https://github.com/ailurophile99/yargi-mcp/releases/latest/download/kurulum_windows.bat) (tarayıcı "tehlikeli olabilir" derse **"Sakla"** seçin).
-
-#### 2. Yol: PowerShell Tek Satır
+#### 2. Yol: PowerShell Tek Satır Komutu
 Başlat menüsüne **PowerShell** yazıp açın, şu satırı yapıştırıp **Enter**'a basın:
 ```powershell
 irm https://raw.githubusercontent.com/ailurophile99/yargi-mcp/master/install.ps1 | iex
+```
+
+### 🍎 macOS / Linux
+**Terminal** uygulamasını açıp şu tek satırı yapıştırın ve **Enter**'a basın:
+```bash
+curl -fsSL https://raw.githubusercontent.com/ailurophile99/yargi-mcp/master/install.sh | bash
 ```
 
 > Kurulum tekrar çalıştırılabilir: her seferinde en güncel sürüme günceller ve kaldığı yerden devam eder.
@@ -36,36 +33,34 @@ irm https://raw.githubusercontent.com/ailurophile99/yargi-mcp/master/install.ps1
 
 ## 🤖 Otomatik Olarak Tanınan ve Yapılandırılan Yapay Zekâlar
 
-Kurulum betiği aşağıdaki tüm ortamlara otomatik entegre olur:
+Kurulum motoru yalnızca bilgisayarınızda yüklü/tespit edilen uygulamaların ayarlarına ekleme yapar; ayarlarınızı bozmaz ve ilk değişiklikten önce `.yargi-yedek` kopyası alır:
 
 | Yapay Zekâ / Araç | Yapılandırma Dosyası | Durum |
 | :--- | :--- | :---: |
-| **Claude Code (CLI)** | `~/.claude.json` ve `.mcp.json` | Otomatik |
-| **Claude Desktop** | `claude_desktop_config.json` | Otomatik |
-| **Gemini (Antigravity)** | `~/.gemini/config/mcp_config.json` | Otomatik |
-| **ChatGPT (Codex)** | `~/.codex/config.toml` & `mcp.json` | Otomatik |
+| **Claude Code (CLI & Sekme)** | `~/.claude.json` ve `.mcp.json` | Otomatik |
+| **Claude Desktop (Sohbet)** | `claude_desktop_config.json` | Otomatik |
+| **Antigravity (Gemini)** | `~/.gemini/config/mcp_config.json` ve `antigravity/mcp_config.json` | Otomatik |
+| **ChatGPT (Codex)** | `~/.codex/config.toml` | Otomatik |
 | **OpenCode** | `opencode.json` (`mcp` bloğu) | Otomatik |
 | **Cline** (VS Code, Cursor & CLI) | `cline_mcp_settings.json` | Otomatik |
 | **Kimi Code** | `~/.kimi-code/mcp.json` | Otomatik |
 | **Hermes Agent** | `~/.hermes/config.yaml` (`mcp_servers`) | Otomatik |
 | **Cursor** | `~/.cursor/mcp.json` | Otomatik |
 
-> *Bir asistanı henüz kurmamış olsanız bile yapılandırması önceden hazırlandığı için, gelecekte o asistanı kurup açtığınızda Yargı MCP sunucusu doğrudan çalışmaya hazır olacaktır.*
+> *Kurulumdan sonra yeni bir yapay zekâ uygulaması yüklerseniz, kurulumu tekrar çalıştırmanız yeterlidir.*
 
 ---
 
 ## 🛠️ Alternatif Kurulum Yolları
 
-### Klasörden Çift Tıklamayla Kurulum
-* **Windows:** `kurulum_windows.bat` dosyasına çift tıklayın.
-* **macOS:** `kurulum_macos.command` dosyasına sağ tıklayıp **Aç** deyin (macOS 15+: *Sistem Ayarları → Gizlilik ve Güvenlik → Yine de Aç*). Terminal komutu bu adımları gerektirmediği için macOS'ta önerilen yoldur.
-
-Her iki başlatıcı da tek başına indirilse bile çalışır; kurulum her zaman `~/yargi-mcp` (Windows: `C:\Users\<ad>\yargi-mcp`) klasörüne yapılır.
+### macOS Çift Tıklama ve Kurulum Dizini
+* **macOS çift tıklama:** Depodaki `kurulum_macos.command` dosyasına sağ tıklayıp **Aç** diyerek de kurabilirsiniz (macOS 15+: *Sistem Ayarları → Gizlilik ve Güvenlik → Yine de Aç*). Terminal komutu bu güvenlik adımlarını gerektirmediği için macOS'ta önerilen yoldur.
+* **Kurulum dizini:** Başlatıcılar tek başına indirilse bile çalışır; tüm dosyalar her zaman `~/yargi-mcp` (Windows: `C:\Users\<ad>\yargi-mcp`) klasörüne kurulur.
 
 ### Sorun Giderme
 | Belirti | Çözüm |
 | :--- | :--- |
-| `.bat` açılıp hemen kapanıyor / hiç açılmıyor | ZIP'ten ayıkladıktan sonra çalıştırın veya PowerShell tek satır komutunu kullanın. |
+| `.bat` açılıp hemen kapanıyor / hiç açılmıyor | Dosyayı doğrudan yukarıdaki **`kurulum_windows.bat İndir`** bağlantısından indirdiğinizden emin olun (dosya listesinde sağ tık *Farklı Kaydet* yapmak HTML sayfası indirir). İsterseniz PowerShell tek satır komutunu da kullanabilirsiniz. |
 | `claude : The term 'claude' is not recognized` | `claude mcp add` gerekmez; kurulum `~/.claude.json` dosyasını doğrudan günceller. Uygulamayı tamamen kapatıp açın. |
 | Sunucu `0xC0000005` ile çöküyor | Kurulum Visual C++ çalışma zamanını otomatik kurar; izin verilmediyse [vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe) kurup kurulumu tekrar çalıştırın. |
 | Araçlar asistanda görünmüyor | Asistanı tamamen kapatıp açın (Claude: tepsi simgesi → Quit / macOS: Cmd+Q). Asistanı kurulumdan *sonra* yüklediyseniz kurulumu tekrar çalıştırın. |
